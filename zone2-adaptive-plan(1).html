@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zone 2 + Strength Plan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:#0a0b0a;--surface:#131413;--surface2:#1a1c1a;--surface3:#222422;
+  --border:#2a2d2a;--border2:#353835;
+  --z2:#22c55e;--z2-dim:rgba(34,197,94,0.15);--z2-border:rgba(34,197,94,0.3);
+  --z3:#f59e0b;--rest:#475569;--lift:#a78bfa;--lift-dim:rgba(167,139,250,0.15);--lift-border:rgba(167,139,250,0.3);
+  --text:#e2e8e2;--muted:#6b7a6b;--muted2:#4a574a;--blue:#3b82f6;--red:#ef4444;
+  --done:#22c55e;--font-mono:'DM Mono','Fira Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Inter',sans-serif;font-size:14px;line-height:1.5;min-height:100vh;}
+
+nav{display:flex;gap:2px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;flex-wrap:wrap;}
+.nav-btn{padding:6px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;}
+.nav-btn:hover{background:var(--surface2);color:var(--text);}
+.nav-btn.active{background:var(--z2-dim);color:var(--z2);border:1px solid var(--z2-border);}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.hr-badge{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:4px 10px;background:var(--surface2);border-radius:20px;border:1px solid var(--border);}
+
+.view{display:none;padding:24px;max-width:1040px;margin:0 auto;}
+.view.active{display:block;}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:20px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
+.stat-val{font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--text);}
+.stat-val.green{color:var(--z2);}
+.stat-val.purple{color:var(--lift);}
+.stat-val.blue{color:var(--blue);}
+
+.phase-block{margin-bottom:28px;}
+.phase-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.phase-label{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em;}
+.phase-title{font-size:15px;font-weight:600;}
+.phase-badge{font-size:10px;font-family:var(--font-mono);padding:2px 8px;border-radius:4px;margin-left:auto;}
+.badge-adapted{background:rgba(34,197,94,0.12);color:var(--z2);border:1px solid var(--z2-border);}
+.badge-build{background:rgba(245,158,11,0.12);color:var(--z3);border:1px solid rgba(245,158,11,0.3);}
+.badge-run{background:rgba(59,130,246,0.12);color:var(--blue);border:1px solid rgba(59,130,246,0.3);}
+
+.week-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .15s;}
+.week-row:hover{border-color:var(--border2);}
+.color-bar{display:flex;gap:2px;height:3px;}
+.color-seg{height:3px;flex:1;}
+.week-head{display:grid;grid-template-columns:170px 1fr auto 20px;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;}
+.week-num{font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.4;}
+.week-summary{font-size:13px;}
+.week-vol{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+.chevron{color:var(--muted);transition:transform .25s;font-size:10px;}
+.week-head.open .chevron{transform:rotate(180deg);}
+.week-body{max-height:0;overflow:hidden;transition:max-height .35s ease;}
+.week-body.open{max-height:600px;}
+.week-body-inner{padding:0 14px 14px;}
+
+/* DAYS GRID */
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.day-cell{border:1px solid var(--border);border-radius:6px;padding:7px 5px;text-align:center;min-height:90px;display:flex;flex-direction:column;gap:2px;cursor:pointer;transition:all .15s;position:relative;}
+.day-cell:hover{border-color:var(--border2);background:var(--surface2);}
+.day-cell.done{border-color:var(--done) !important;background:rgba(34,197,94,0.06);}
+.day-cell.done::after{content:'✓';position:absolute;top:4px;right:5px;font-size:9px;color:var(--done);font-weight:700;}
+.day-name{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.day-date-lbl{font-size:9px;color:var(--muted2);margin-bottom:2px;}
+.day-type-label{font-size:10px;font-weight:500;margin-top:2px;line-height:1.3;}
+.day-detail{font-size:9px;color:var(--muted);line-height:1.3;margin-top:1px;}
+.day-lift-tag{font-size:8px;color:var(--lift);background:var(--lift-dim);border-radius:3px;padding:1px 4px;margin-top:3px;display:inline-block;}
+.type-z2{color:var(--z2);}
+.type-z3{color:var(--z3);}
+.type-rest{color:var(--rest);}
+.type-lift{color:var(--lift);}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:22px;width:340px;max-width:92vw;max-height:90vh;overflow-y:auto;}
+.modal h3{font-size:14px;font-weight:600;margin-bottom:14px;}
+.modal-section{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:14px 0 8px;}
+.modal-options{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:4px;}
+.modal-opt{padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;text-align:center;font-size:12px;transition:all .15s;}
+.modal-opt:hover{border-color:var(--border2);}
+.modal-opt.selected{border-color:var(--z2-border);background:var(--z2-dim);color:var(--z2);}
+.modal-opt.selected.lift-sel{border-color:var(--lift-border);background:var(--lift-dim);color:var(--lift);}
+.modal-check{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;margin-bottom:10px;}
+.modal-check input{width:16px;height:16px;accent-color:var(--done);cursor:pointer;}
+.modal-check label{font-size:13px;cursor:pointer;flex:1;}
+.modal-detail{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px;margin-bottom:14px;resize:none;height:54px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;transition:all .15s;}
+.btn:hover{border-color:var(--border2);}
+.btn-primary{background:var(--z2-dim);border-color:var(--z2-border);color:var(--z2);}
+.btn-primary:hover{background:rgba(34,197,94,0.25);}
+.btn-danger{background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:var(--red);}
+
+/* UPLOAD */
+.upload-zone{border:2px dashed var(--border2);border-radius:12px;padding:40px 24px;text-align:center;margin-bottom:20px;cursor:pointer;transition:all .2s;}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--z2);background:var(--z2-dim);}
+.upload-zone h2{font-size:15px;margin-bottom:6px;}
+.upload-zone p{font-size:12px;color:var(--muted);}
+.activity-log{display:flex;flex-direction:column;gap:8px;}
+.activity-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.activity-card-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.activity-stats{display:flex;gap:14px;flex-wrap:wrap;}
+.activity-stat{font-size:12px;color:var(--muted);}
+.activity-stat strong{color:var(--text);}
+.z2-bar-wrap{margin-top:8px;}
+.z2-bar-label{font-size:10px;color:var(--muted);margin-bottom:3px;}
+.z2-bar-track{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;}
+.z2-bar-fill{height:100%;background:var(--z2);border-radius:3px;}
+.chart-wrap{position:relative;width:100%;height:200px;margin-top:10px;}
+
+/* PROGRESS */
+.progress-section{margin-bottom:24px;}
+.progress-section h3{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+.progress-empty{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:28px;text-align:center;color:var(--muted);font-size:13px;}
+
+/* LEGEND */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.legend-dot{width:8px;height:8px;border-radius:50%;}
+
+.adapted-note{background:var(--z2-dim);border:1px solid var(--z2-border);border-radius:8px;padding:11px 15px;margin-bottom:18px;font-size:13px;color:var(--z2);line-height:1.6;}
+.adapted-note strong{font-weight:600;}
+
+.parse-status{display:none;padding:11px;background:var(--surface);border-radius:8px;margin-bottom:14px;font-size:13px;color:var(--muted);}
+
+@media(max-width:600px){
+  .view{padding:14px;}
+  nav{padding:8px 14px;}
+  .week-head{grid-template-columns:140px 1fr 16px;}
+  .week-vol{display:none;}
+  .days-grid{gap:3px;}
+  .day-cell{padding:5px 3px;min-height:72px;}
+  .day-detail{display:none;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <button class="nav-btn active" onclick="showView('plan',this)">Plan</button>
+  <button class="nav-btn" onclick="showView('upload',this)">Upload Activity</button>
+  <button class="nav-btn" onclick="showView('progress',this)">Progress</button>
+  <div class="nav-right">
+    <span class="hr-badge">Z2: 113–132 bpm</span>
+  </div>
+</nav>
+
+<!-- PLAN -->
+<div id="view-plan" class="view active">
+  <div class="adapted-note">
+    <strong>Adapted Jun 28 · Week starts Sunday.</strong> Walking ceiling ~15:35/mi — jog intervals start week 2. Strength (3×/week, upper/lower split) integrated on cardio days. Click any day to mark done or edit.
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Start date</div><div class="stat-val" style="font-size:15px">Jun 28</div></div>
+    <div class="stat-card"><div class="stat-label">Z2 Range</div><div class="stat-val green" style="font-size:15px">113–132</div></div>
+    <div class="stat-card"><div class="stat-label">Walk ceiling</div><div class="stat-val blue" style="font-size:15px">15:35/mi</div></div>
+    <div class="stat-card"><div class="stat-label">Lift days/wk</div><div class="stat-val purple">3×</div></div>
+    <div class="stat-card"><div class="stat-label">Weeks total</div><div class="stat-val">16</div></div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--z2)"></div>Zone 2</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--z3)"></div>Zone 3 tempo</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--lift)"></div>Lift</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--rest)"></div>Rest</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--z2);opacity:.35;outline:1px solid var(--z2);outline-offset:1px;border-radius:50%"></div>Completed ✓</div>
+  </div>
+  <div id="plan-container"></div>
+</div>
+
+<!-- UPLOAD -->
+<div id="view-upload" class="view">
+  <div class="upload-zone" id="drop-zone" onclick="document.getElementById('fit-input').click()">
+    <div style="font-size:28px;margin-bottom:10px">⬆</div>
+    <h2>Drop your .fit file here</h2>
+    <p>Garmin Connect → Activity → Export Original. Parses HR, pace, and zone time automatically.</p>
+  </div>
+  <input type="file" id="fit-input" accept=".fit" style="display:none" onchange="handleFileInput(event)">
+  <div class="parse-status" id="parse-status"></div>
+  <div class="activity-log" id="activity-log">
+    <div class="progress-empty">No activities yet. Upload a .fit file above.</div>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div id="view-progress" class="view">
+  <div class="progress-section"><h3>Zone 2 minutes per session</h3><div id="z2-prog-wrap"><div class="progress-empty">Upload activities to see your progress.</div></div></div>
+  <div class="progress-section"><h3>Zone 2 pace trend (faster = better)</h3><div id="pace-prog-wrap"><div class="progress-empty">Upload activities to track pace improvement.</div></div></div>
+  <div class="progress-section"><h3>Sessions completed per week</h3><div id="completion-prog-wrap"><div class="progress-empty">Mark days done to see your completion rate.</div></div></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="day-modal" onclick="bgClose(event)">
+  <div class="modal">
+    <h3 id="modal-title">Edit Day</h3>
+
+    <div class="modal-check" onclick="toggleDone()">
+      <input type="checkbox" id="modal-done">
+      <label for="modal-done">Mark as completed</label>
+    </div>
+
+    <div class="modal-section">Session type</div>
+    <div class="modal-options">
+      <div class="modal-opt" data-type="Z2" onclick="selType(this)"><span class="type-z2">● Zone 2</span></div>
+      <div class="modal-opt" data-type="Z3" onclick="selType(this)"><span class="type-z3">● Zone 3</span></div>
+      <div class="modal-opt" data-type="LIFT" onclick="selType(this)"><span class="type-lift">● Lift only</span></div>
+      <div class="modal-opt" data-type="REST" onclick="selType(this)"><span class="type-rest">● Rest</span></div>
+    </div>
+
+    <div id="lift-section" style="display:none">
+      <div class="modal-section">Lift session</div>
+      <div class="modal-options" style="grid-template-columns:1fr 1fr">
+        <div class="modal-opt lift-opt" data-lift="Upper A" onclick="selLift(this)"><span class="type-lift">Upper A</span></div>
+        <div class="modal-opt lift-opt" data-lift="Lower A" onclick="selLift(this)"><span class="type-lift">Lower A</span></div>
+        <div class="modal-opt lift-opt" data-lift="Upper B" onclick="selLift(this)"><span class="type-lift">Upper B</span></div>
+        <div class="modal-opt lift-opt" data-lift="Lower B" onclick="selLift(this)"><span class="type-lift">Lower B</span></div>
+        <div class="modal-opt lift-opt" data-lift="none" onclick="selLift(this)" style="grid-column:1/-1"><span class="type-rest">No lift today</span></div>
+      </div>
+      <div id="lift-exercises" style="font-size:11px;color:var(--muted);background:var(--surface2);border-radius:6px;padding:10px 12px;margin-top:2px;margin-bottom:8px;line-height:1.8;"></div>
+    </div>
+
+    <div class="modal-section">Notes</div>
+    <textarea class="modal-detail" id="modal-detail" placeholder="e.g. 30 min walk · bench 3×8 @ 135lb"></textarea>
+
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="clearDay()">Reset</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDay()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fit-file-parser@3.0.2/dist/fit-file-parser.min.js"></script>
+<script>
+// ── CONSTANTS ──────────────────────────────────────────────────────────────
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const Z2_LOW = 113, Z2_HIGH = 132;
+const PLAN_START = new Date(2026, 5, 28); // June 28 — local time, avoids UTC shift bug
+
+// ── DATE HELPERS ───────────────────────────────────────────────────────────
+function weekStart(n){ const d=new Date(PLAN_START); d.setDate(d.getDate()+(n-1)*7); return d; }
+function weekEnd(n){ const d=weekStart(n); d.setDate(d.getDate()+6); return d; }
+function fmt(d,s){ return d.toLocaleDateString('en-US',s?{month:'short',day:'numeric'}:{month:'short',day:'numeric',year:'numeric'}); }
+function weekRange(n){ return `${fmt(weekStart(n),1)} – ${fmt(weekEnd(n),1)}`; }
+function phaseRange(a,b){ return `${fmt(weekStart(a),1)} – ${fmt(weekEnd(b),1)}`; }
+function dayDate(wn,di){ const d=weekStart(wn); d.setDate(d.getDate()+di); return fmt(d,1); }
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let activities = JSON.parse(localStorage.getItem('z2_acts')||'[]');
+let overrides  = JSON.parse(localStorage.getItem('z2_over')||'{}');
+let completed  = JSON.parse(localStorage.getItem('z2_done')||'{}');
+let editing    = null;
+
+// ── LIFT ROTATION ──────────────────────────────────────────────────────────
+// Upper A / Lower A / Upper B cycling through weeks
+// 3 lift sessions land on Mon, Wed, Fri each week (days 1,3,5)
+// Rotation: week1 = A/B/A, week2 = B/A/B, etc.
+const LIFT_EXERCISES = {
+  'Upper A': 'Bench press 4×6 · OHP 3×8 · Barbell row 4×6 · Pull-ups 3×max',
+  'Lower A': 'Squat 4×6 · Romanian DL 3×8 · Goblet squat 2×12 · Plank 3×45s',
+  'Upper B': 'OHP 4×6 · Incline bench 3×8 · Pull-ups 4×max · Barbell row 3×10 · Dips 3×max',
+  'Lower B': 'Romanian DL 4×6 · Squat 3×8 · Bulgarian split squat 3×8 · Hip thrust 3×12',
+};
+
+function selLift(el){
+  document.querySelectorAll('.lift-opt').forEach(o=>o.classList.remove('selected','lift-sel'));
+  el.classList.add('selected','lift-sel');
+  const name=el.dataset.lift;
+  const ex=document.getElementById('lift-exercises');
+  ex.textContent = name==='none' ? '' : (LIFT_EXERCISES[name]||'');
+  ex.style.display = (name==='none'||!LIFT_EXERCISES[name]) ? 'none' : 'block';
+}
+
+function showLiftSection(show, liftName){
+  const sec=document.getElementById('lift-section');
+  sec.style.display=show?'block':'none';
+  if(show && liftName){
+    document.querySelectorAll('.lift-opt').forEach(o=>{
+      o.classList.remove('selected','lift-sel');
+      if(o.dataset.lift===liftName){ o.classList.add('selected','lift-sel'); }
+    });
+    const ex=document.getElementById('lift-exercises');
+    ex.textContent=LIFT_EXERCISES[liftName]||'';
+    ex.style.display=LIFT_EXERCISES[liftName]?'block':'none';
+  }
+}
+
+// ── PLAN DATA ──────────────────────────────────────────────────────────────
+// day array: [Sun, Mon, Tue, Wed, Thu, Fri, Sat]
+// Lift days: Mon(1), Wed(3), Fri(5) combined with cardio
+// Type codes: Z2, Z3, REST, LIFT
+// lift field: true = has strength session this day
+const PLAN = [
+ {
+  phaseNum:'01',phaseTitle:'Lock In Zone 2',fw:1,lw:3,badgeClass:'badge-adapted',badgeText:'ADAPTED',
+  insight:'Walking ceiling ~15:35/mi means jog intervals start week 2 instead of week 3. Lifting 3×/week on Mon/Wed/Fri after cardio — keep weights conservative while connective tissue adapts.',
+  weeks:[
+   {n:1,summary:'Z2 walk + establish lift baseline',vol:'~175 min cardio',days:[
+    {type:'Z2',label:'Z2 Walk',detail:'35 min · 15:45/mi'},
+    {type:'Z2',label:'Z2 Walk + Lift',detail:'35 min walk',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Z2 Walk + Lift',detail:'35 min incline',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Z2 Walk',detail:'35 min flat'},
+    {type:'Z2',label:'Z2 Walk + Lift',detail:'35 min flat',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long walk',detail:'55 min'},
+   ]},
+   {n:2,summary:'30s jog intervals — first jog efforts',vol:'~185 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'30s jog/2min walk ×8'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'30s jog/2min walk ×6',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Z2 Walk + Lift',detail:'40 min push pace',lift:true,liftName:'Upper A'},
+    {type:'Z2',label:'Walk+Jog',detail:'30s jog/2min walk ×8'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'30s jog/2min walk ×6',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Long walk',detail:'60 min'},
+   ]},
+   {n:3,summary:'1 min jog / 2 min walk intervals',vol:'~190 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'1min jog/2min walk ×8'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'1min jog/2min walk ×6',lift:true,liftName:'Upper B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'1min jog/2min walk ×6',lift:true,liftName:'Lower B'},
+    {type:'Z2',label:'Walk+Jog',detail:'1min jog/2min walk ×8'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'1min jog/2min walk ×6',lift:true,liftName:'Upper A'},
+    {type:'Z2',label:'Long walk',detail:'65 min'},
+   ]},
+  ]
+ },
+ {
+  phaseNum:'02',phaseTitle:'Interval Build',fw:4,lw:8,badgeClass:'badge-build',badgeText:'BUILD',
+  insight:'Jog segments lengthen each week. Strength progression: add 5lb to upper lifts and 10lb to lower lifts when you complete all reps cleanly. Week 8 is a deload — drop volume 40%, keep intensity.',
+  weeks:[
+   {n:4,summary:'2 min jog / 2 min walk · Progress lifts',vol:'~195 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'2min jog/2min walk ×6'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'2min jog/2min walk ×5',lift:true,liftName:'Lower A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'2min jog/2min walk ×5',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Walk+Jog',detail:'2min jog/2min walk ×6'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'2min jog/2min walk ×5',lift:true,liftName:'Lower B'},
+    {type:'Z2',label:'Long walk/jog',detail:'70 min mixed'},
+   ]},
+   {n:5,summary:'3 min jog / 2 min walk',vol:'~200 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'3min jog/2min walk ×5'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'3min jog/2min walk ×4',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'3min jog/2min walk ×4',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Walk+Jog',detail:'3min jog/2min walk ×5'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'3min jog/2min walk ×4',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long jog/walk',detail:'70 min'},
+   ]},
+   {n:6,summary:'5 min jog / 1 min walk',vol:'~205 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'5min jog/1min walk ×5'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'5min jog/1min walk ×4',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'5min jog/1min walk ×4',lift:true,liftName:'Upper A'},
+    {type:'Z2',label:'Walk+Jog',detail:'5min jog/1min walk ×5'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'5min jog/1min walk ×4',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Long jog/walk',detail:'75 min'},
+   ]},
+   {n:7,summary:'8 min jog / 1 min walk',vol:'~210 min cardio',days:[
+    {type:'Z2',label:'Walk+Jog',detail:'8min jog/1min walk ×4'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'8min jog/1min walk ×3',lift:true,liftName:'Upper B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'8min jog/1min walk ×3',lift:true,liftName:'Lower B'},
+    {type:'Z2',label:'Walk+Jog',detail:'8min jog/1min walk ×4'},
+    {type:'Z2',label:'Walk+Jog + Lift',detail:'8min jog/1min walk ×3',lift:true,liftName:'Upper A'},
+    {type:'Z2',label:'Long jog/walk',detail:'80 min'},
+   ]},
+   {n:8,summary:'Deload week — 40% volume drop',vol:'~150 min cardio',days:[
+    {type:'Z2',label:'Easy walk/jog',detail:'30 min easy'},
+    {type:'Z2',label:'Easy walk + Lift',detail:'30 min easy',lift:true,liftName:'Lower A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Easy walk/jog',detail:'30 min easy'},
+    {type:'Z2',label:'Easy walk + Lift',detail:'30 min easy',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+   ]},
+  ]
+ },
+ {
+  phaseNum:'03',phaseTitle:'Aerobic Expansion',fw:9,lw:12,badgeClass:'badge-build',badgeText:'PUSH',
+  insight:'One Z3 tempo session added Thursdays — sandwiched between easy days. Lifts shift to 3×5 heavy compound focus as cardio volume rises. Week 12 deloads both systems.',
+  weeks:[
+   {n:9,summary:'12 min jog / 1 min walk + first Z3',vol:'~215 min cardio',days:[
+    {type:'Z2',label:'Z2 Jog',detail:'12min jog/1min walk ×3'},
+    {type:'Z2',label:'Z2 Jog + Lift',detail:'12min jog/1min walk ×2',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'28 min tempo run'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min easy'},
+    {type:'Z2',label:'Z2 Jog + Lift',detail:'12min jog/1min walk ×2',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long jog/walk',detail:'80 min'},
+   ]},
+   {n:10,summary:'20 min continuous Z2 jog',vol:'~220 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'20 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'20 min continuous',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'30 min — 4×5 min hard'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'20 min continuous',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Long run/walk',detail:'85 min'},
+   ]},
+   {n:11,summary:'30 min continuous Z2 jog',vol:'~230 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'30 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'30 min continuous',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'30 min — 5×5 min hard'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'30 min continuous',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long run/walk',detail:'90 min'},
+   ]},
+   {n:12,summary:'Deload — protect both systems',vol:'~155 min cardio',days:[
+    {type:'Z2',label:'Easy jog',detail:'30 min'},
+    {type:'Z2',label:'Easy jog + Lift',detail:'30 min easy',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z2',label:'Easy jog',detail:'30 min'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'REST',label:'Rest',detail:''},
+   ]},
+  ]
+ },
+ {
+  phaseNum:'04',phaseTitle:'Continuous Zone 2 Running',fw:13,lw:16,badgeClass:'badge-run',badgeText:'SUSTAIN',
+  insight:'Continuous Z2 jogging 40–50 min. Lifting stays 3×5 heavy — strength work now complements running economy. Sunday long run is the week\'s most important session for mitochondrial density.',
+  weeks:[
+   {n:13,summary:'40 min continuous Z2 + heavy compound work',vol:'~235 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'40 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'40 min continuous',lift:true,liftName:'Lower A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'30 min tempo run'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'40 min continuous',lift:true,liftName:'Upper A'},
+    {type:'Z2',label:'Long run',detail:'90 min'},
+   ]},
+   {n:14,summary:'45 min continuous Z2',vol:'~245 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'45 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'45 min continuous',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'35 min — 5×5 min hard'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'45 min continuous',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long run',detail:'95 min'},
+   ]},
+   {n:15,summary:'50 min continuous Z2',vol:'~255 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'50 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'50 min continuous',lift:true,liftName:'Upper A'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'35 min tempo run'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'50 min continuous',lift:true,liftName:'Lower A'},
+    {type:'Z2',label:'Long run',detail:'100 min'},
+   ]},
+   {n:16,summary:'Assessment week — test your fitness',vol:'~260 min cardio',days:[
+    {type:'Z2',label:'Z2 Run',detail:'45 min continuous'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'45 min continuous',lift:true,liftName:'Lower B'},
+    {type:'REST',label:'Rest',detail:''},
+    {type:'Z3',label:'Zone 3 Tempo',detail:'35 min — assess pace'},
+    {type:'Z2',label:'Recovery walk',detail:'40 min'},
+    {type:'Z2',label:'Z2 Run + Lift',detail:'45 min continuous',lift:true,liftName:'Upper B'},
+    {type:'Z2',label:'Long run',detail:'100 min'},
+   ]},
+  ]
+ },
+];
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function typeColor(t){
+  if(t==='Z2') return 'var(--z2)';
+  if(t==='Z3') return 'var(--z3)';
+  if(t==='LIFT') return 'var(--lift)';
+  return 'var(--surface3)';
+}
+function typeClass(t){ return t==='Z2'?'type-z2':t==='Z3'?'type-z3':t==='LIFT'?'type-lift':'type-rest'; }
+function isDone(wn,di){ return !!completed[`w${wn}_d${di}`]; }
+function paceStr(dec){ if(!dec)return'—'; const m=Math.floor(dec),s=Math.round((dec-m)*60); return `${m}:${s.toString().padStart(2,'0')}/mi`; }
+
+// ── RENDER PLAN ────────────────────────────────────────────────────────────
+function renderPlan(){
+  const c=document.getElementById('plan-container');
+  c.innerHTML='';
+  PLAN.forEach(phase=>{
+    const ph=document.createElement('div');
+    ph.className='phase-block';
+    ph.innerHTML=`<div class="phase-head">
+      <span class="phase-label">PHASE ${phase.phaseNum}</span>
+      <span class="phase-title">${phase.phaseTitle}</span>
+      <span class="phase-label" style="color:var(--muted2)">${phaseRange(phase.fw,phase.lw)}</span>
+      <span class="phase-badge ${phase.badgeClass}">${phase.badgeText}</span>
+    </div>`;
+    c.appendChild(ph);
+
+    phase.weeks.forEach(week=>{
+      const wr=document.createElement('div'); wr.className='week-row';
+      const doneCount=week.days.filter((_,i)=>isDone(week.n,i)).length;
+      const doneBar=doneCount>0?`<span style="font-size:10px;color:var(--done);font-family:var(--font-mono);margin-left:6px">${doneCount}/7 ✓</span>`:'';
+      const barSegs=week.days.map(d=>`<div class="color-seg" style="background:${typeColor(d.type)};opacity:0.55"></div>`).join('');
+      wr.innerHTML=`
+        <div class="color-bar">${barSegs}</div>
+        <div class="week-head" onclick="toggleWeek(this)">
+          <span class="week-num">WK ${week.n} · ${weekRange(week.n)}</span>
+          <span class="week-summary">${week.summary}${doneBar}</span>
+          <span class="week-vol">${week.vol}</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="week-body"><div class="week-body-inner"><div class="days-grid" id="dg-${week.n}"></div></div></div>
+      `;
+      ph.appendChild(wr);
+
+      // render day cells
+      setTimeout(()=>{
+        const grid=document.getElementById(`dg-${week.n}`);
+        if(!grid)return;
+        week.days.forEach((day,di)=>{
+          const ov=overrides[`w${week.n}_d${di}`];
+          const d=ov||day;
+          const done=isDone(week.n,di);
+          const cell=document.createElement('div');
+          cell.className='day-cell'+(done?' done':'');
+          const liftTag=d.lift&&d.liftName?`<span class="day-lift-tag">${d.liftName}</span>`:'';
+          cell.innerHTML=`
+            <div class="day-name">${DAYS[di]}</div>
+            <div class="day-date-lbl">${dayDate(week.n,di)}</div>
+            <div class="day-type-label ${typeClass(d.type)}">${d.label}</div>
+            <div class="day-detail">${d.detail}</div>
+            ${liftTag}
+          `;
+          cell.onclick=()=>openModal(week.n,di,d);
+          grid.appendChild(cell);
+        });
+      },0);
+    });
+  });
+}
+
+function toggleWeek(h){ h.classList.toggle('open'); h.nextElementSibling.classList.toggle('open'); }
+
+// ── MODAL ──────────────────────────────────────────────────────────────────
+function openModal(wn,di,d){
+  editing={wn,di,d};
+  document.getElementById('modal-title').textContent=`${DAYS[di]} · ${dayDate(wn,di)} · Week ${wn}`;
+  document.getElementById('modal-done').checked=isDone(wn,di);
+  document.getElementById('modal-detail').value=overrides[`w${wn}_d${di}`]?.notes||'';
+  document.querySelectorAll('.modal-opt:not(.lift-opt)').forEach(o=>{
+    o.classList.remove('selected','lift-sel');
+    if(o.dataset.type===d.type){ o.classList.add('selected'); if(d.type==='LIFT')o.classList.add('lift-sel'); }
+  });
+  // Show lift section if day has a lift
+  const hasLift = d.lift || d.type==='LIFT';
+  showLiftSection(hasLift, d.liftName||null);
+  document.getElementById('day-modal').classList.add('open');
+}
+function toggleDone(){ document.getElementById('modal-done').checked=!document.getElementById('modal-done').checked; }
+function selType(el){
+  document.querySelectorAll('.modal-opt:not(.lift-opt)').forEach(o=>o.classList.remove('selected','lift-sel'));
+  el.classList.add('selected');
+  if(el.dataset.type==='LIFT') el.classList.add('lift-sel');
+  // Show lift toggle for Z2/Z3/LIFT, hide for REST
+  const t=el.dataset.type;
+  showLiftSection(t!=='REST', editing?.d?.liftName||null);
+}
+function bgClose(e){ if(e.target.id==='day-modal')closeModal(); }
+function closeModal(){ document.getElementById('day-modal').classList.remove('open'); editing=null; }
+function clearDay(){
+  if(!editing)return;
+  const k=`w${editing.wn}_d${editing.di}`;
+  delete overrides[k]; delete completed[k];
+  localStorage.setItem('z2_over',JSON.stringify(overrides));
+  localStorage.setItem('z2_done',JSON.stringify(completed));
+  closeModal(); renderPlan();
+}
+function saveDay(){
+  if(!editing)return;
+  const k=`w${editing.wn}_d${editing.di}`;
+  const sel=document.querySelector('.modal-opt:not(.lift-opt).selected');
+  const type=sel?sel.dataset.type:editing.d.type;
+  const notes=document.getElementById('modal-detail').value;
+  const done=document.getElementById('modal-done').checked;
+  const liftSel=document.querySelector('.lift-opt.selected');
+  const liftName=liftSel&&liftSel.dataset.lift!=='none'?liftSel.dataset.lift:null;
+  const labels={Z2:'Z2 Session',Z3:'Zone 3 Tempo',LIFT:'Lift',REST:'Rest'};
+  if(notes||type!==editing.d.type||liftName!==editing.d.liftName){
+    overrides[k]={...editing.d,type,label:labels[type],notes,
+      lift:!!liftName, liftName: liftName||null};
+  }
+  if(done) completed[k]=true; else delete completed[k];
+  localStorage.setItem('z2_over',JSON.stringify(overrides));
+  localStorage.setItem('z2_done',JSON.stringify(completed));
+  closeModal(); renderPlan();
+}
+
+// ── FIT FILE ───────────────────────────────────────────────────────────────
+function handleFileInput(e){ const f=e.target.files[0]; if(f)parseFit(f); }
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f&&f.name.endsWith('.fit'))parseFit(f);});
+
+function parseFit(file){
+  const st=document.getElementById('parse-status');
+  st.style.display='block'; st.textContent='Parsing '+file.name+'…';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      if(typeof FitParser==='undefined'){st.textContent='Parser still loading — try again in a moment.';return;}
+      const fp=new FitParser({force:true,speedUnit:'m/s',lengthUnit:'m',elapsedRecordField:true,mode:'list'});
+      fp.parse(e.target.result,(err,data)=>{
+        if(err){st.textContent='Parse error: '+err;return;}
+        processActivity(data,file.name,st);
+      });
+    }catch(err){st.textContent='Error: '+err.message;}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processActivity(data,filename,st){
+  const recs=(data.records||[]).filter(r=>r.heart_rate&&r.heart_rate>40);
+  if(!recs.length){st.textContent='No HR data found.';return;}
+  const hrs=recs.map(r=>r.heart_rate);
+  const ts=recs.map(r=>new Date(r.timestamp));
+  const avgHR=Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length);
+  const maxHR=Math.max(...hrs);
+  const timeInZ2=Math.round(hrs.filter(h=>h>=Z2_LOW&&h<=Z2_HIGH).length/60);
+  const pctZ2=Math.round(hrs.filter(h=>h>=Z2_LOW&&h<=Z2_HIGH).length*100/hrs.length);
+  const z2r=recs.filter(r=>r.heart_rate>=Z2_LOW&&r.heart_rate<=Z2_HIGH&&(r.enhanced_speed||r.speed||0)>0);
+  let avgPaceZ2=null;
+  if(z2r.length){const sp=z2r.reduce((a,r)=>a+(r.enhanced_speed||r.speed||0),0)/z2r.length;if(sp>0)avgPaceZ2=1609.34/sp/60;}
+  const durMin=Math.round((ts[ts.length-1]-ts[0])/60000);
+  const distMi=((recs[recs.length-1].distance||0)*0.000621371).toFixed(2);
+  const actDate=ts[0].toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const minData=[];
+  const startMs=ts[0].getTime();
+  for(let m=0;m<Math.ceil(durMin);m++){
+    const b=recs.filter(r=>{const e=(new Date(r.timestamp)-startMs)/1000;return e>=m*60&&e<(m+1)*60;});
+    if(b.length){
+      const bHR=Math.round(b.reduce((a,r)=>a+r.heart_rate,0)/b.length);
+      const sp=b.map(r=>r.enhanced_speed||r.speed||0).filter(s=>s>0);
+      minData.push({min:m+1,hr:bHR,pace:sp.length?1609.34/(sp.reduce((a,b)=>a+b,0)/sp.length)/60:null});
+    }
+  }
+  const act={id:Date.now(),filename,actDate,durMin,distMi:parseFloat(distMi),avgHR,maxHR,timeInZ2,pctZ2,avgPaceZ2,minData};
+  activities=activities.filter(a=>a.filename!==filename);
+  activities.unshift(act);
+  localStorage.setItem('z2_acts',JSON.stringify(activities));
+  st.textContent=`✓ ${filename} — ${durMin} min · avg ${avgHR} bpm · ${timeInZ2} min in Z2`;
+  renderLog(); renderProgress();
+}
+
+// ── ACTIVITY LOG ───────────────────────────────────────────────────────────
+function renderLog(){
+  const log=document.getElementById('activity-log');
+  if(!activities.length){log.innerHTML='<div class="progress-empty">No activities yet. Upload a .fit file above.</div>';return;}
+  log.innerHTML=activities.map((a,i)=>`
+    <div class="activity-card">
+      <div class="activity-card-head">
+        <strong style="font-size:14px">${a.actDate}</strong>
+        <span style="font-size:11px;color:var(--muted)">${a.filename}</span>
+        <button class="btn btn-danger" style="margin-left:auto;font-size:11px;padding:4px 10px" onclick="delAct(${i})">Remove</button>
+      </div>
+      <div class="activity-stats">
+        <div class="activity-stat"><strong>${a.durMin}</strong> min</div>
+        <div class="activity-stat"><strong>${a.distMi}</strong> mi</div>
+        <div class="activity-stat">Avg HR <strong>${a.avgHR}</strong></div>
+        <div class="activity-stat">Max HR <strong>${a.maxHR}</strong></div>
+        <div class="activity-stat">Z2 pace <strong>${paceStr(a.avgPaceZ2)}</strong></div>
+      </div>
+      <div class="z2-bar-wrap">
+        <div class="z2-bar-label">${a.timeInZ2} min in Zone 2 (${a.pctZ2}%)</div>
+        <div class="z2-bar-track"><div class="z2-bar-fill" style="width:${a.pctZ2}%"></div></div>
+      </div>
+      ${a.minData&&a.minData.length?`<div class="chart-wrap"><canvas id="ac-${a.id}" role="img" aria-label="HR and pace for ${a.actDate}"></canvas></div>`:''}
+    </div>
+  `).join('');
+  activities.forEach(a=>{
+    if(!a.minData||!a.minData.length)return;
+    const cv=document.getElementById(`ac-${a.id}`); if(!cv)return;
+    const gc='rgba(255,255,255,0.06)',tc='#6b7a6b';
+    new Chart(cv,{type:'bar',data:{
+      labels:a.minData.map(d=>d.min%5===0?`${d.min}m`:''),
+      datasets:[
+        {label:'HR',data:a.minData.map(d=>d.hr),backgroundColor:a.minData.map(d=>d.hr<Z2_LOW?'#475569':d.hr>Z2_HIGH?'#ef4444':'#22c55e'),borderRadius:2,borderSkipped:'bottom',barPercentage:.9,categoryPercentage:.9,yAxisID:'yHR',order:2},
+        {label:'Z2 lo',data:a.minData.map(()=>Z2_LOW),type:'line',borderColor:'rgba(34,197,94,0.35)',borderWidth:1,borderDash:[4,3],pointRadius:0,fill:false,yAxisID:'yHR',order:1},
+        {label:'Z2 hi',data:a.minData.map(()=>Z2_HIGH),type:'line',borderColor:'rgba(34,197,94,0.35)',borderWidth:1,borderDash:[4,3],pointRadius:0,fill:'-1',backgroundColor:'rgba(34,197,94,0.06)',yAxisID:'yHR',order:1},
+        {label:'Pace',data:a.minData.map(d=>d.pace),type:'line',borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,tension:.3,fill:false,yAxisID:'yPace',order:0,spanGaps:true},
+      ]
+    },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>`Minute ${i[0].dataIndex+1}`,label:i=>{if(i.datasetIndex===0){const h=i.raw;return `HR: ${h} — ${h<Z2_LOW?'Below Z2':h>Z2_HIGH?'Above Z2':'Zone 2 ✓'}`;}if(i.datasetIndex===3&&i.raw)return `Pace: ${paceStr(i.raw)}`;return null;}}}},
+      scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10},autoSkip:false,maxRotation:0}},yHR:{type:'linear',position:'left',min:70,max:150,grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v+' bpm'}},yPace:{type:'linear',position:'right',min:12,max:24,reverse:true,grid:{display:false},ticks:{color:'#3b82f6',font:{size:10},callback:v=>paceStr(v)}}}}
+    });
+  });
+}
+
+function delAct(i){ activities.splice(i,1); localStorage.setItem('z2_acts',JSON.stringify(activities)); renderLog(); renderProgress(); }
+
+// ── PROGRESS CHARTS ────────────────────────────────────────────────────────
+let charts={};
+function renderProgress(){
+  const gc='rgba(255,255,255,0.06)',tc='#6b7a6b';
+  // Z2 time
+  const z2w=document.getElementById('z2-prog-wrap');
+  if(!activities.length){z2w.innerHTML='<div class="progress-empty">Upload activities to see progress.</div>';return;}
+  const sorted=[...activities].reverse();
+  const labels=sorted.map(a=>a.actDate);
+  z2w.innerHTML='<div style="position:relative;width:100%;height:180px"><canvas id="z2pc" role="img" aria-label="Zone 2 minutes per session"></canvas></div>';
+  if(charts.z2){charts.z2.destroy();}
+  charts.z2=new Chart(document.getElementById('z2pc'),{type:'bar',data:{labels,datasets:[{label:'Z2 min',data:sorted.map(a=>a.timeInZ2),backgroundColor:'rgba(34,197,94,0.55)',borderRadius:4,borderSkipped:'bottom'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{min:0,grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+' min'}}}}});
+
+  // Pace
+  const pw=document.getElementById('pace-prog-wrap');
+  pw.innerHTML='<div style="position:relative;width:100%;height:180px"><canvas id="ppc" role="img" aria-label="Zone 2 pace over time"></canvas></div>';
+  if(charts.pace){charts.pace.destroy();}
+  charts.pace=new Chart(document.getElementById('ppc'),{type:'line',data:{labels,datasets:[{label:'Z2 pace',data:sorted.map(a=>a.avgPaceZ2),borderColor:'#3b82f6',borderWidth:2,pointRadius:4,pointBackgroundColor:'#3b82f6',tension:.3,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>i.raw?`Pace: ${paceStr(i.raw)}`:null}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{reverse:true,grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>paceStr(v)}}}}});
+
+  // Completion
+  const cw=document.getElementById('completion-prog-wrap');
+  const wkCounts={};
+  Object.keys(completed).forEach(k=>{const wn=parseInt(k.match(/w(\d+)/)[1]);wkCounts[wn]=(wkCounts[wn]||0)+1;});
+  const wks=Object.keys(wkCounts).sort((a,b)=>a-b);
+  cw.innerHTML='<div style="position:relative;width:100%;height:180px"><canvas id="cpc" role="img" aria-label="Sessions completed per week"></canvas></div>';
+  if(charts.comp){charts.comp.destroy();}
+  charts.comp=new Chart(document.getElementById('cpc'),{type:'bar',data:{labels:wks.map(w=>`Wk ${w}`),datasets:[{label:'Done',data:wks.map(w=>wkCounts[w]),backgroundColor:'rgba(167,139,250,0.55)',borderRadius:4,borderSkipped:'bottom'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{min:0,max:7,grid:{color:gc},ticks:{color:tc,font:{size:11},stepSize:1,callback:v=>v+' days'}}}}});
+}
+
+// ── VIEW SWITCHING ─────────────────────────────────────────────────────────
+function showView(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='progress')renderProgress();
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+renderPlan();
+renderLog();
+
+// Pre-load today's walk
+const todayAct={id:1751105400000,filename:'23406542206_ACTIVITY.fit',actDate:'Jun 28, 2026',durMin:44,distMi:2.70,avgHR:114,maxHR:133,timeInZ2:20,pctZ2:53,avgPaceZ2:16.08,minData:[
+  {min:1,hr:92,pace:20.42},{min:2,hr:96,pace:17.77},{min:3,hr:97,pace:17.77},{min:4,hr:98,pace:19.55},{min:5,hr:100,pace:18.91},
+  {min:6,hr:104,pace:19.08},{min:7,hr:107,pace:18.35},{min:8,hr:110,pace:19.27},{min:9,hr:111,pace:18.52},{min:10,hr:113,pace:16.98},
+  {min:11,hr:110,pace:16.17},{min:12,hr:110,pace:17.08},{min:13,hr:111,pace:18.54},{min:14,hr:111,pace:19.36},{min:15,hr:110,pace:20.00},
+  {min:16,hr:112,pace:17.38},{min:17,hr:112,pace:16.13},{min:18,hr:108,pace:15.89},{min:19,hr:108,pace:16.42},{min:20,hr:111,pace:16.84},
+  {min:21,hr:113,pace:16.59},{min:22,hr:112,pace:16.02},{min:23,hr:112,pace:16.14},{min:24,hr:111,pace:15.88},{min:25,hr:117,pace:15.03},
+  {min:26,hr:118,pace:16.00},{min:27,hr:122,pace:16.59},{min:28,hr:124,pace:16.25},{min:29,hr:123,pace:16.60},{min:30,hr:125,pace:16.08},
+  {min:31,hr:121,pace:15.82},{min:32,hr:122,pace:16.22},{min:33,hr:124,pace:16.64},{min:34,hr:125,pace:16.09},{min:35,hr:126,pace:16.17},
+  {min:36,hr:125,pace:15.95},{min:37,hr:124,pace:15.78},{min:38,hr:125,pace:15.94},{min:39,hr:123,pace:16.46},{min:40,hr:122,pace:16.18},
+  {min:41,hr:125,pace:16.26},{min:42,hr:123,pace:15.73},{min:43,hr:128,pace:15.59},{min:44,hr:128,pace:15.85},{min:45,hr:129,pace:15.88},
+]};
+if(!activities.find(a=>a.filename===todayAct.filename)){activities.push(todayAct);localStorage.setItem('z2_acts',JSON.stringify(activities));renderLog();}
+</script>
+</body>
+</html>
